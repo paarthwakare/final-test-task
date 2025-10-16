@@ -1,0 +1,869 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1" />
+  <title>Tissot Watch – Interactive Configurator Demo</title>
+  <meta name="description" content="Interactive Tissot-style analog watch demo with live time, customization, and purchase simulation." />
+  <style>
+    :root{
+      --bg: #0c0d10;
+      --panel: #11131a;
+      --panel-2: #161924;
+      --ink: #e9ecf1;
+      --muted: #9aa3b2;
+      --accent: #e11d2e; /* Tissot red */
+      --ok: #2ecc71;
+      --warn: #f39c12;
+
+      --case-color: #cfd6df;  /* steel */
+      --case-shadow: #6c7685;
+      --dial-color: #0a0b0e;  /* black dial */
+      --dial-mark: #f6f7fb;
+      --strap-color: #2e2a28; /* leather default */
+      --strap-type: leather;  /* leather | steel | fabric */
+
+      --glow: rgba(153, 255, 153, 0.0);
+
+      --watch-scale: 1;
+
+      --elev-1: 0 10px 30px rgba(0,0,0,.35);
+      --elev-2: 0 20px 60px rgba(0,0,0,.45);
+      --radius: 16px;
+    }
+
+    @media (prefers-color-scheme: light) {
+      :root {
+        --bg: #f6f7fb;
+        --panel: #ffffff;
+        --panel-2: #f1f3f9;
+        --ink: #0c0d10;
+        --muted: #4b5563;
+      }
+    }
+
+    * { box-sizing: border-box; }
+    html, body { height: 100%; }
+    body{
+      margin:0;
+      font-family: ui-sans-serif, system-ui, -apple-system, Segoe UI, Roboto, Helvetica, Arial, Apple Color Emoji, Segoe UI Emoji;
+      color: var(--ink);
+      background:
+        radial-gradient(1200px 600px at 80% -10%, #23283b 0%, transparent 70%),
+        radial-gradient(900px 500px at 0% 110%, #1d2233 0%, transparent 70%),
+        var(--bg);
+      background-attachment: fixed;
+    }
+    a { color: inherit; }
+
+    header {
+      position: sticky; top: 0; z-index: 40;
+      backdrop-filter: blur(8px);
+      background: color-mix(in oklab, var(--bg), transparent 45%);
+      border-bottom: 1px solid color-mix(in oklab, var(--ink), transparent 90%);
+    }
+    .nav {
+      max-width: 1200px; margin: 0 auto; padding: 14px 20px;
+      display:flex; align-items:center; gap: 18px; justify-content: space-between;
+    }
+    .brand {
+      display:flex; align-items:center; gap: 12px; font-weight: 800; letter-spacing: .12em;
+    }
+    .brand .flag {
+      width: 22px; height: 22px; border-radius: 3px; background: #e11d2e; display: grid; place-items: center; color: white; font-weight: 900;
+      box-shadow: inset 0 0 0 2px rgba(255,255,255,.25);
+    }
+    .pill {
+      padding: 8px 12px; border-radius: 999px; background: var(--panel-2); color: var(--muted); font-size: 12px;
+      border: 1px solid color-mix(in oklab, var(--ink), transparent 85%);
+    }
+    .cart {
+      position: relative; padding: 10px 14px; border-radius: 999px; border:1px solid color-mix(in oklab, var(--ink), transparent 85%); background: var(--panel);
+      display:flex; align-items:center; gap: 8px; cursor:pointer;
+    }
+    .cart .dot {
+      position:absolute; top:-6px; right:-6px; width: 22px; height: 22px; border-radius: 50%; background: var(--accent); color: #fff; font-size: 12px; display:grid; place-items:center;
+      box-shadow: 0 6px 14px rgba(225,29,46,.5);
+      transform: translate(0,0); transition: transform .2s ease;
+    }
+
+    main { max-width: 1200px; margin: 28px auto; padding: 0 20px 64px; }
+
+    .hero {
+      display:grid; grid-template-columns: 1.2fr 1fr; gap: 28px; align-items: stretch;
+    }
+    @media (max-width: 960px) {
+      .hero { grid-template-columns: 1fr; }
+    }
+
+    .watch-stage {
+      perspective: 1600px;
+      background: linear-gradient(180deg, color-mix(in oklab, var(--panel-2), transparent 30%), transparent 70%);
+      border-radius: var(--radius);
+      border: 1px solid color-mix(in oklab, var(--ink), transparent 88%);
+      position:relative; overflow: hidden; min-height: 520px;
+      display:grid; place-items:center;
+      box-shadow: var(--elev-2);
+    }
+    .watch-wrap {
+      transform-style: preserve-3d;
+      transition: transform .18s ease;
+      will-change: transform;
+    }
+    .watch-wrap.dragging { cursor: grabbing; }
+    .watch {
+      transform: scale(var(--watch-scale));
+      transform-origin: center;
+      filter: drop-shadow(0 50px 60px rgba(0,0,0,.45));
+    }
+    .stage-hint {
+      position:absolute; bottom: 10px; left: 10px; right: 10px;
+      display:flex; justify-content: space-between; gap: 8px; color: var(--muted); font-size: 12px; opacity: .8;
+    }
+
+    .panel {
+      background: var(--panel);
+      border: 1px solid color-mix(in oklab, var(--ink), transparent 88%);
+      border-radius: var(--radius);
+      padding: 18px;
+      box-shadow: var(--elev-1);
+    }
+    .stack { display:flex; flex-direction: column; gap: 16px; }
+    .hstack { display:flex; align-items:center; gap: 12px; flex-wrap: wrap; }
+    .grow { flex: 1; }
+    .title { font-size: 28px; font-weight: 800; letter-spacing: .02em; }
+    .subtitle { color: var(--muted); }
+    .price { font-size: 26px; font-weight: 800; }
+    .strike { text-decoration: line-through; color: color-mix(in oklab, var(--muted), transparent 30%); font-weight: 600; }
+    .rating { display:flex; align-items:center; gap: 6px; color: var(--muted); }
+
+    .btn {
+      border: 1px solid color-mix(in oklab, var(--ink), transparent 80%);
+      background: linear-gradient(180deg, color-mix(in oklab, var(--panel-2), transparent 15%), color-mix(in oklab, var(--panel), transparent 0%));
+      color: var(--ink);
+      padding: 10px 14px; border-radius: 10px; cursor: pointer; font-weight: 700;
+      transition: transform .05s ease, background .2s ease, border-color .2s ease;
+    }
+    .btn.primary { background: linear-gradient(180deg, color-mix(in oklab, var(--accent), #ffffff 15%), var(--accent)); color: #fff; border-color: color-mix(in oklab, var(--accent), black 20%); }
+    .btn:active { transform: translateY(1px); }
+
+    .swatch {
+      width: 28px; height: 28px; border-radius: 999px; border:1px solid color-mix(in oklab, var(--ink), transparent 82%); cursor: pointer; position:relative;
+      box-shadow: inset 0 0 0 2px rgba(255,255,255,.06);
+    }
+    .swatch[aria-checked="true"]::after {
+      content:""; position:absolute; inset:-4px; border-radius: 999px; border:2px solid var(--accent);
+    }
+
+    .control {
+      background: var(--panel-2); border:1px solid color-mix(in oklab, var(--ink), transparent 86%);
+      padding: 12px; border-radius: 12px;
+    }
+    label { font-size: 12px; color: var(--muted); display:block; margin-bottom: 6px; }
+    input[type="range"]{ width: 100%; }
+    input[type="color"]{
+      width: 44px; height: 28px; padding: 0; border-radius: 6px; border:1px solid color-mix(in oklab, var(--ink), transparent 80%); background: transparent;
+    }
+
+    .toggle {
+      display:inline-flex; align-items:center; gap: 8px; cursor: pointer; user-select: none;
+    }
+    .toggle .k {
+      width: 46px; height: 26px; border-radius: 999px; background: color-mix(in oklab, var(--ink), transparent 86%); border:1px solid color-mix(in oklab, var(--ink), transparent 80%); position: relative; transition: background .2s;
+    }
+    .toggle .k::after {
+      content:""; position:absolute; top: 2px; left: 2px; width: 20px; height: 20px; border-radius: 50%; background: #fff; transition: transform .2s ease;
+      box-shadow: 0 4px 8px rgba(0,0,0,.25);
+    }
+    .toggle input { display:none; }
+    .toggle input:checked + .k { background: var(--accent); border-color: color-mix(in oklab, var(--accent), black 20%); }
+    .toggle input:checked + .k::after { transform: translateX(20px); }
+
+    .toast {
+      position: fixed; bottom: 18px; left: 50%; transform: translateX(-50%) translateY(20px);
+      background: var(--panel); border:1px solid color-mix(in oklab, var(--ink), transparent 86%); padding: 10px 14px; border-radius: 10px; box-shadow: var(--elev-1);
+      opacity: 0; pointer-events: none; transition: opacity .2s ease, transform .2s ease;
+    }
+    .toast.show { opacity: 1; transform: translateX(-50%) translateY(0); pointer-events: auto; }
+
+    /* SVG theming */
+    .svgi [data-part="case"] { fill: var(--case-color); }
+    .svgi [data-part="case-shadow"] { fill: color-mix(in oklab, var(--case-shadow), transparent 30%); }
+    .svgi [data-part="bezel"] {
+      fill: url(#bezelGrad);
+    }
+    .svgi [data-part="dial"] { fill: var(--dial-color); }
+    .svgi [data-part="mark"] { stroke: var(--dial-mark); }
+    .svgi [data-part="logo"] { fill: var(--dial-mark); }
+    .svgi [data-part="hand-hour"],
+    .svgi [data-part="hand-min"] { fill: var(--dial-mark); }
+    .svgi [data-part="hand-sec"] { stroke: var(--accent); }
+    .svgi [data-part="cap"] { fill: var(--dial-mark); }
+    .svgi [data-part="date-window"] { fill: #fff; }
+    .svgi [data-part="date-text"] { fill: #111; font-family: ui-sans-serif, system-ui, -apple-system, Segoe UI, Roboto, Helvetica, Arial; }
+
+    /* strap styles switch */
+    .svgi [data-part="strap"] { fill: var(--strap-color); }
+    .svgi.strapped-steel [data-part="strap"] { fill: url(#braceletPattern); }
+    .svgi.strapped-fabric [data-part="strap"] { fill: url(#fabricPattern); }
+    .svgi .lume { filter: drop-shadow(0 0 6px var(--glow)); }
+
+    .specs {
+      margin-top: 28px;
+      display:grid; grid-template-columns: repeat(3, 1fr); gap: 16px;
+    }
+    @media (max-width: 900px){ .specs { grid-template-columns: 1fr; } }
+
+    .spec { display:flex; gap: 12px; align-items:flex-start; padding: 14px; border-radius: 12px; background: var(--panel); border: 1px solid color-mix(in oklab, var(--ink), transparent 88%); }
+    .spec svg { width: 24px; height: 24px; opacity: .9; }
+
+    .footer {
+      margin-top: 40px; text-align:center; color: var(--muted); font-size: 12px;
+    }
+  </style>
+</head>
+<body>
+  <header>
+    <div class="nav">
+      <div class="brand" aria-label="Brand">
+        <span class="flag" aria-hidden="true">✚</span>
+        <span>TISSOT</span>
+        <span class="pill">Chrono Classic Demo</span>
+      </div>
+      <div class="hstack">
+        <span class="pill">Free shipping</span>
+        <button id="cartBtn" class="cart" aria-label="Cart">
+          <svg width="18" height="18" viewBox="0 0 24 24" fill="currentColor" aria-hidden="true">
+            <path d="M7 4h-2l-1 2h2l3.6 7.59-1.35 2.44A2 2 0 0 0 10 19h9v-2h-8.42a.25.25 0 0 1-.22-.37L11 14h6.55a2 2 0 0 0 1.8-1.11L22 6H6.42l-.7-2zM7 20a2 2 0 1 0 0 4 2 2 0 0 0 0-4zm10 0a2 2 0 1 0 0 4 2 2 0 0 0 0-4z"></path>
+          </svg>
+          <span>Cart</span>
+          <span id="cartCount" class="dot">0</span>
+        </button>
+      </div>
+    </div>
+  </header>
+
+  <main>
+    <section class="hero">
+      <div class="watch-stage" id="stage" aria-label="Interactive watch preview">
+        <div id="watchWrap" class="watch-wrap">
+          <!-- SVG Watch -->
+          <svg class="watch svgi strapped-leather" id="watchSvg" width="460" height="600" viewBox="0 0 460 600" role="img" aria-labelledby="title desc">
+            <title id="title">Tissot Chrono Classic – Interactive Preview</title>
+            <desc id="desc">Configurable analog watch with live time and customization controls.</desc>
+            <defs>
+              <radialGradient id="caseGrad" cx="50%" cy="30%" r="70%">
+                <stop offset="0%" stop-color="#ffffff" stop-opacity="0.9"></stop>
+                <stop offset="60%" stop-color="#ffffff" stop-opacity="0.15"></stop>
+                <stop offset="100%" stop-color="#000000" stop-opacity="0.25"></stop>
+              </radialGradient>
+              <radialGradient id="dialRad" cx="50%" cy="40%" r="70%">
+                <stop offset="0%" stop-color="#ffffff" stop-opacity="0.10"></stop>
+                <stop offset="100%" stop-color="#000000" stop-opacity="0.35"></stop>
+              </radialGradient>
+              <linearGradient id="bezelGrad" x1="0" x2="1" y1="0" y2="1">
+                <stop offset="0%" stop-color="#fff" stop-opacity=".8"></stop>
+                <stop offset="50%" stop-color="#fff" stop-opacity=".2"></stop>
+                <stop offset="100%" stop-color="#000" stop-opacity=".25"></stop>
+              </linearGradient>
+              <!-- Steel bracelet pattern -->
+              <pattern id="braceletPattern" width="16" height="16" patternUnits="userSpaceOnUse">
+                <rect width="16" height="16" fill="#c7ced8"/>
+                <rect y="8" width="16" height="8" fill="#b7c0cc"/>
+                <rect x="7" width="2" height="16" fill="#9aa3b2" opacity=".6"/>
+              </pattern>
+              <!-- Fabric strap pattern -->
+              <pattern id="fabricPattern" width="6" height="6" patternUnits="userSpaceOnUse" patternTransform="rotate(30)">
+                <rect width="6" height="6" fill="#2b4b5a"/>
+                <rect width="6" height="1" y="0" fill="#1f3640" opacity=".65"/>
+                <rect width="6" height="1" y="3" fill="#1f3640" opacity=".65"/>
+              </pattern>
+              <!-- Leather stitch pattern -->
+              <pattern id="leatherStitch" width="10" height="6" patternUnits="userSpaceOnUse">
+                <rect width="10" height="6" fill="transparent"/>
+                <rect x="4.5" y="0" width="1" height="6" fill="#f4e3c3" opacity=".5" rx=".5"/>
+              </pattern>
+              <filter id="softShadow" x="-50%" y="-50%" width="200%" height="200%">
+                <feDropShadow dx="0" dy="8" stdDeviation="10" flood-color="#000" flood-opacity=".35"/>
+              </filter>
+              <clipPath id="faceClip">
+                <circle cx="230" cy="300" r="150" />
+              </clipPath>
+            </defs>
+
+            <!-- Subtle ground shadow -->
+            <ellipse cx="230" cy="520" rx="170" ry="24" fill="#000" opacity=".35" filter="url(#softShadow)"></ellipse>
+
+            <!-- Strap top -->
+            <g data-part="strap">
+              <rect x="190" y="10" width="80" height="220" rx="18" ry="18" />
+              <rect x="180" y="200" width="100" height="40" rx="12" ry="12" fill="url(#leatherStitch)" opacity=".7"></rect>
+            </g>
+            <!-- Strap bottom -->
+            <g data-part="strap">
+              <rect x="190" y="370" width="80" height="220" rx="18" ry="18" />
+              <rect x="180" y="370" width="100" height="40" rx="12" ry="12" fill="url(#leatherStitch)" opacity=".7"></rect>
+            </g>
+
+            <!-- Lugs -->
+            <g data-part="case" opacity=".95">
+              <rect x="150" y="200" width="30" height="40" rx="8"/>
+              <rect x="280" y="200" width="30" height="40" rx="8"/>
+              <rect x="150" y="360" width="30" height="40" rx="8"/>
+              <rect x="280" y="360" width="30" height="40" rx="8"/>
+            </g>
+
+            <!-- Case main -->
+            <g>
+              <circle cx="230" cy="300" r="170" data-part="case"></circle>
+              <circle cx="230" cy="300" r="160" data-part="case-shadow" opacity=".25"></circle>
+              <circle cx="230" cy="300" r="155" data-part="bezel" opacity=".6"></circle>
+            </g>
+
+            <!-- Crown -->
+            <g transform="translate(390,300)">
+              <circle r="16" data-part="case"></circle>
+              <circle r="13" fill="url(#caseGrad)" opacity=".8"></circle>
+              <rect x="-8" y="-2" width="16" height="4" rx="2" fill="#000" opacity=".25"></rect>
+            </g>
+
+            <!-- Dial -->
+            <g clip-path="url(#faceClip)">
+              <circle cx="230" cy="300" r="150" data-part="dial"></circle>
+              <circle cx="230" cy="300" r="150" fill="url(#dialRad)" opacity=".8"></circle>
+
+              <!-- Hour markers -->
+              <g id="markers" stroke-width="4" stroke-linecap="round">
+                <!-- 12 main -->
+                <line class="lume" data-part="mark" x1="230" y1="160" x2="230" y2="180" />
+                <line class="lume" data-part="mark" x1="230" y1="420" x2="230" y2="400" />
+                <line class="lume" data-part="mark" x1="80" y1="300" x2="100" y2="300" />
+                <line class="lume" data-part="mark" x1="380" y1="300" x2="360" y2="300" />
+                <!-- minor markers -->
+                <g opacity=".75">
+                  <g transform="rotate(30 230 300)">
+                    <line class="lume" data-part="mark" x1="230" y1="160" x2="230" y2="175"/>
+                    <line class="lume" data-part="mark" x1="230" y1="425" x2="230" y2="405"/>
+                  </g>
+                  <g transform="rotate(60 230 300)">
+                    <line class="lume" data-part="mark" x1="230" y1="160" x2="230" y2="175"/>
+                    <line class="lume" data-part="mark" x1="230" y1="425" x2="230" y2="405"/>
+                  </g>
+                  <g transform="rotate(120 230 300)">
+                    <line class="lume" data-part="mark" x1="230" y1="160" x2="230" y2="175"/>
+                    <line class="lume" data-part="mark" x1="230" y1="425" x2="230" y2="405"/>
+                  </g>
+                  <g transform="rotate(150 230 300)">
+                    <line class="lume" data-part="mark" x1="230" y1="160" x2="230" y2="175"/>
+                    <line class="lume" data-part="mark" x1="230" y1="425" x2="230" y2="405"/>
+                  </g>
+                </g>
+              </g>
+
+              <!-- Logo -->
+              <g transform="translate(230 240)" text-anchor="middle">
+                <text y="-4" data-part="logo" font-size="20" font-weight="800" letter-spacing="0.3em">TISSOT</text>
+                <text y="18" data-part="logo" font-size="10" opacity=".8">1853</text>
+              </g>
+
+              <!-- Date window -->
+              <g transform="translate(320 300)">
+                <rect x="-20" y="-16" width="40" height="24" rx="4" data-part="date-window"></rect>
+                <text data-part="date-text" x="0" y="0" font-size="14" dominant-baseline="central" text-anchor="middle" font-weight="700" id="dateText">28</text>
+              </g>
+
+              <!-- Hands -->
+              <g id="hands" transform="translate(230 300)">
+                <!-- Hour hand -->
+                <g id="hour" transform="rotate(0)">
+                  <path data-part="hand-hour" d="M -6 10 L 0 -70 L 6 10 Z" />
+                </g>
+                <!-- Minute hand -->
+                <g id="minute" transform="rotate(0)">
+                  <path data-part="hand-min" d="M -4 12 L 0 -110 L 4 12 Z" />
+                </g>
+                <!-- Second hand -->
+                <g id="second" transform="rotate(0)">
+                  <line data-part="hand-sec" x1="0" y1="16" x2="0" y2="-120" stroke-width="2"/>
+                  <circle r="4" fill="var(--accent)"></circle>
+                  <line x1="0" y1="16" x2="0" y2="30" stroke="var(--accent)" stroke-width="2" opacity=".9"></line>
+                </g>
+                <!-- Center cap -->
+                <circle data-part="cap" r="6"></circle>
+              </g>
+
+              <!-- Crystal reflection -->
+              <g opacity=".18">
+                <path d="M 80 170 C 160 130, 260 120, 360 170 L 360 200 C 260 150, 160 150, 80 200 Z" fill="#fff"></path>
+                <path d="M 80 410 C 160 450, 300 460, 380 420 L 380 400 C 300 440, 160 440, 80 400 Z" fill="#fff" opacity=".6"></path>
+              </g>
+            </g>
+          </svg>
+        </div>
+        <div class="stage-hint">
+          <span>Tip: Drag to rotate</span>
+          <span>Move mouse to tilt</span>
+        </div>
+      </div>
+
+      <div class="panel stack">
+        <div class="stack">
+          <div class="title">Tissot Chrono Classic</div>
+          <div class="hstack">
+            <div class="rating">
+              <svg width="16" height="16" viewBox="0 0 24 24" fill="#f1c40f" aria-hidden="true"><path d="M12 .587l3.668 7.431 8.2 1.193-5.934 5.785 1.402 8.18L12 18.896 4.664 23.176l1.402-8.18L.132 9.211l8.2-1.193z"/></svg>
+              <strong>4.8</strong> (1,204)
+            </div>
+            <span class="pill">Swiss Made</span>
+            <span class="pill">5-year warranty</span>
+          </div>
+          <div class="hstack" style="align-items: baseline;">
+            <div class="price" id="price">$695</div>
+            <div class="strike" id="strike"></div>
+          </div>
+        </div>
+
+        <!-- Strap -->
+        <div class="control">
+          <label>Strap</label>
+          <div class="hstack">
+            <button class="btn" data-strap="leather" aria-pressed="true">Leather</button>
+            <button class="btn" data-strap="steel">Steel Bracelet</button>
+            <button class="btn" data-strap="fabric">Fabric</button>
+            <div class="grow"></div>
+            <label for="strapColor">Color</label>
+            <input type="color" id="strapColor" title="Strap color" value="#2e2a28" />
+          </div>
+        </div>
+
+        <!-- Case material -->
+        <div class="control">
+          <label>Case material</label>
+          <div class="hstack" role="radiogroup" aria-label="Case material">
+            <div class="swatch" role="radio" tabindex="0" aria-checked="true" data-case="#cfd6df,#6c7685" title="Stainless steel" style="background: conic-gradient(#fff, #cfd6df, #9aa3b2);"></div>
+            <div class="swatch" role="radio" tabindex="0" aria-checked="false" data-case="#c7a96b,#7c6541" title="Gold PVD" style="background: conic-gradient(#fff8e6, #c7a96b, #8b6f3b);"></div>
+            <div class="swatch" role="radio" tabindex="0" aria-checked="false" data-case="#2b2e34,#111317" title="Black PVD" style="background: conic-gradient(#666, #2b2e34, #111317);"></div>
+          </div>
+        </div>
+
+        <!-- Dial color -->
+        <div class="control">
+          <label for="dialColor">Dial color</label>
+          <div class="hstack">
+            <input type="color" id="dialColor" title="Dial color" value="#0a0b0e" />
+            <button class="btn" data-dial="#0a0b0e">Black</button>
+            <button class="btn" data-dial="#e9edf4">White</button>
+            <button class="btn" data-dial="#0f3b77">Blue</button>
+            <button class="btn" data-dial="#163d2f">Green</button>
+          </div>
+        </div>
+
+        <!-- Size + Time -->
+        <div class="hstack">
+          <div class="control" style="flex:1">
+            <label for="size">Case size (visual)</label>
+            <input type="range" id="size" min="0.8" max="1.25" step="0.01" value="1" />
+          </div>
+          <div class="control" style="flex:1">
+            <label>Time</label>
+            <div class="hstack" style="align-items:center;">
+              <label class="toggle">
+                <input id="liveTime" type="checkbox" />
+                <span class="k"></span>
+                <span>Live time</span>
+              </label>
+              <label class="toggle">
+                <input id="sweep" type="checkbox" checked />
+                <span class="k"></span>
+                <span>Sweep seconds</span>
+              </label>
+            </div>
+          </div>
+        </div>
+
+        <!-- Lume -->
+        <div class="control">
+          <label>Night mode</label>
+          <div class="hstack">
+            <label class="toggle">
+              <input id="lume" type="checkbox" />
+              <span class="k"></span>
+              <span>Luminous markers</span>
+            </label>
+            <span class="pill">Tip: toggle in the dark</span>
+          </div>
+        </div>
+
+        <!-- Actions -->
+        <div class="hstack" style="margin-top: 6px;">
+          <button id="buyBtn" class="btn primary">Add to cart</button>
+          <button id="saveBtn" class="btn">Save configuration</button>
+          <div class="grow"></div>
+          <span class="subtitle" id="eta">Ships in 24h</span>
+        </div>
+      </div>
+    </section>
+
+    <section class="specs">
+      <div class="spec">
+        <svg viewBox="0 0 24 24" fill="currentColor"><path d="M12 1a11 11 0 1 0 11 11A11.012 11.012 0 0 0 12 1zm0 2a9 9 0 1 1-9 9 9.01 9.01 0 0 1 9-9zm.5 4h-1v6l5 3 .5-.866-4.5-2.634z"/></svg>
+        <div>
+          <strong>Quartz precision</strong>
+          <div class="subtitle">Accurate Swiss quartz movement with long-life battery.</div>
+        </div>
+      </div>
+      <div class="spec">
+        <svg viewBox="0 0 24 24" fill="currentColor"><path d="M7 3h10l1 5H6l1-5zm-2 7h14l-1.5 11h-11L5 10zm7.5 3a2.5 2.5 0 1 0 0 5 2.5 2.5 0 0 0 0-5z"/></svg>
+        <div>
+          <strong>316L Steel</strong>
+          <div class="subtitle">Durable case with optional PVD coatings for distinct styles.</div>
+        </div>
+      </div>
+      <div class="spec">
+        <svg viewBox="0 0 24 24" fill="currentColor"><path d="M12 2l8 4v6c0 5-3 9-8 10-5-1-8-5-8-10V6l8-4zm0 2.18L6 6.5v5.5c0 4.08 2.46 7.29 6 8.24 3.54-.95 6-4.16 6-8.24V6.5l-6-2.32z"/></svg>
+        <div>
+          <strong>Water resistant 100m</strong>
+          <div class="subtitle">Swim-ready with robust seals and screw-down crown.</div>
+        </div>
+      </div>
+    </section>
+
+    <div class="footer">Demo project. Tissot is a trademark of its respective owner. This app is for educational purposes.</div>
+  </main>
+
+  <div id="toast" class="toast" role="status" aria-live="polite">Added to cart</div>
+
+  <script>
+    const $ = (q, el=document)=>el.querySelector(q);
+    const $$ = (q, el=document)=>[...el.querySelectorAll(q)];
+
+    // Elements
+    const wrap = $('#watchWrap');
+    const svg = $('#watchSvg');
+    const stage = $('#stage');
+    const priceEl = $('#price');
+    const strikeEl = $('#strike');
+    const cartCount = $('#cartCount');
+    const toast = $('#toast');
+
+    const strapButtons = $$('[data-strap]');
+    const strapColor = $('#strapColor');
+    const caseSwatches = $$('.swatch[role="radio"]');
+    const dialColor = $('#dialColor');
+    const dialButtons = $$('[data-dial]');
+    const sizeRange = $('#size');
+    const liveTime = $('#liveTime');
+    const sweep = $('#sweep');
+    const lume = $('#lume');
+
+    const buyBtn = $('#buyBtn');
+    const saveBtn = $('#saveBtn');
+    const cartBtn = $('#cartBtn');
+
+    // Hands
+    const hourHand = $('#hour');
+    const minuteHand = $('#minute');
+    const secondHand = $('#second');
+    const dateText = $('#dateText');
+
+    // State
+    const state = {
+      strapType: 'leather', // leather | steel | fabric
+      strapColor: strapColor.value,
+      case: { color: '#cfd6df', shadow:'#6c7685', material: 'steel' },
+      dialColor: dialColor.value,
+      scale: parseFloat(sizeRange.value),
+      live: false,
+      sweep: true,
+      lume: false,
+      price: 695,
+      base: 695,
+      cart: 0,
+    };
+
+    const priceMap = {
+      case: { steel: 0, gold: 150, black: 100 },
+      strap: { leather: 0, steel: 120, fabric: -30 },
+    };
+
+    function fmtUSD(n){ return n.toLocaleString(undefined,{style:'currency', currency:'USD'}); }
+
+    // Apply visual state to CSS variables / classes
+    function applyState(){
+      document.documentElement.style.setProperty('--strap-color', state.strapColor);
+      document.documentElement.style.setProperty('--dial-color', state.dialColor);
+      document.documentElement.style.setProperty('--case-color', state.case.color);
+      document.documentElement.style.setProperty('--case-shadow', state.case.shadow);
+      document.documentElement.style.setProperty('--watch-scale', state.scale);
+      document.documentElement.style.setProperty('--glow', state.lume ? 'rgba(153,255,153,.8)' : 'rgba(153,255,153,0)');
+
+      svg.classList.toggle('strapped-steel', state.strapType === 'steel');
+      svg.classList.toggle('strapped-fabric', state.strapType === 'fabric');
+      svg.classList.toggle('strapped-leather', state.strapType === 'leather');
+
+      // Strap color field is disabled when steel bracelet
+      strapColor.disabled = state.strapType === 'steel';
+
+      // Date display (uses system date always)
+      const d = new Date();
+      dateText.textContent = String(d.getDate()).padStart(2,'0');
+
+      computePrice();
+    }
+
+    function computePrice(){
+      const caseDelta = state.case.material === 'gold' ? priceMap.case.gold :
+                        state.case.material === 'black' ? priceMap.case.black : priceMap.case.steel;
+      const strapDelta = priceMap.strap[state.strapType] || 0;
+      state.price = state.base + caseDelta + strapDelta;
+
+      priceEl.textContent = fmtUSD(state.price);
+      const hasDiscount = state.strapType === 'fabric';
+      if(hasDiscount){
+        strikeEl.textContent = fmtUSD(state.base + caseDelta);
+      } else {
+        strikeEl.textContent = '';
+      }
+    }
+
+    // Strap selection
+    strapButtons.forEach(btn=>{
+      btn.addEventListener('click', ()=>{
+        strapButtons.forEach(b=>b.setAttribute('aria-pressed','false'));
+        btn.setAttribute('aria-pressed','true');
+        state.strapType = btn.dataset.strap;
+        if(state.strapType !== 'steel'){
+          // keep selected color
+        }else{
+          // for steel bracelet use neutral color so pattern looks right
+          state.strapColor = '#bfc7d2';
+          strapColor.value = state.strapColor;
+        }
+        applyState();
+        persist();
+      });
+    });
+    strapColor.addEventListener('input', e=>{
+      state.strapColor = e.target.value;
+      applyState();
+      persist();
+    });
+
+    // Case material selection
+    caseSwatches.forEach((sw, i)=>{
+      sw.addEventListener('click', ()=>swSelect(sw));
+      sw.addEventListener('keydown', (e)=>{ if(e.key==='Enter' || e.key===' '){ e.preventDefault(); swSelect(sw);} });
+    });
+    function swSelect(sw){
+      caseSwatches.forEach(s=>s.setAttribute('aria-checked','false'));
+      sw.setAttribute('aria-checked','true');
+      const [color, shadow] = sw.dataset.case.split(',');
+      document.documentElement.style.setProperty('--case-color', color);
+      document.documentElement.style.setProperty('--case-shadow', shadow);
+      // material type
+      const title = sw.getAttribute('title') || '';
+      if(title.toLowerCase().includes('gold')) state.case.material = 'gold';
+      else if(title.toLowerCase().includes('black')) state.case.material = 'black';
+      else state.case.material = 'steel';
+      state.case.color = color; state.case.shadow = shadow;
+      applyState();
+      persist();
+    }
+
+    // Dial
+    dialButtons.forEach(btn=>{
+      btn.addEventListener('click', ()=>{
+        state.dialColor = btn.dataset.dial;
+        dialColor.value = rgbToHex(state.dialColor);
+        applyState();
+        persist();
+      });
+    });
+    dialColor.addEventListener('input', e=>{
+      state.dialColor = e.target.value;
+      applyState();
+      persist();
+    });
+
+    // Size
+    sizeRange.addEventListener('input', e=>{
+      state.scale = parseFloat(e.target.value);
+      applyState();
+      persist();
+    });
+
+    // Time toggles
+    liveTime.addEventListener('change', e=>{
+      state.live = e.target.checked;
+      if(!state.live){
+        // set hands to 10:10:36
+        setHandsTo(10,10,36);
+      }
+      persist();
+    });
+    sweep.addEventListener('change', e=>{
+      state.sweep = e.target.checked;
+      persist();
+    });
+
+    // Lume
+    lume.addEventListener('change', e=>{
+      state.lume = e.target.checked;
+      applyState();
+      persist();
+    });
+
+    // Buy
+    buyBtn.addEventListener('click', ()=>{
+      state.cart += 1;
+      cartCount.textContent = state.cart;
+      cartCount.style.transform = 'translate(0,-6px)';
+      setTimeout(()=> cartCount.style.transform = 'translate(0,0)', 150);
+      showToast('Added to cart');
+      persist();
+    });
+    cartBtn.addEventListener('click', ()=>{
+      showToast(`Cart: ${state.cart} item${state.cart===1?'':'s'} • ${fmtUSD(state.price*state.cart)}`);
+    });
+
+    // Save configuration
+    saveBtn.addEventListener('click', ()=>{
+      persist(true);
+      showToast('Configuration saved');
+    });
+
+    function showToast(msg){
+      toast.textContent = msg;
+      toast.classList.add('show');
+      clearTimeout(showToast._t);
+      showToast._t = setTimeout(()=> toast.classList.remove('show'), 1500);
+    }
+
+    // Watch tilt and drag rotation
+    let rotX = -8, rotY = 18; // initial angle
+    let drag = { active:false, startX:0, startY:0, baseX:rotX, baseY:rotY };
+    function apply3D(){
+      wrap.style.transform = `rotateX(${rotX}deg) rotateY(${rotY}deg)`;
+    }
+    apply3D();
+
+    stage.addEventListener('pointermove', (e)=>{
+      if(drag.active){
+        const dx = e.clientX - drag.startX;
+        const dy = e.clientY - drag.startY;
+        rotY = drag.baseY + dx * 0.2;
+        rotX = clamp(drag.baseX - dy * 0.2, -30, 30);
+        apply3D();
+      } else {
+        // subtle tilt with cursor
+        const r = stage.getBoundingClientRect();
+        const cx = (e.clientX - r.left) / r.width - 0.5;
+        const cy = (e.clientY - r.top) / r.height - 0.5;
+        const tx = clamp(-cy * 6, -8, 8);
+        const ty = clamp(cx * 8, -12, 12);
+        wrap.style.transform = `rotateX(${rotX + tx}deg) rotateY(${rotY + ty}deg)`;
+      }
+    });
+    stage.addEventListener('pointerleave', ()=>{
+      apply3D();
+    });
+    stage.addEventListener('pointerdown', (e)=>{
+      stage.setPointerCapture(e.pointerId);
+      drag.active = true; wrap.classList.add('dragging');
+      drag.startX = e.clientX; drag.startY = e.clientY;
+      drag.baseX = rotX; drag.baseY = rotY;
+    });
+    stage.addEventListener('pointerup', (e)=>{
+      drag.active = false; wrap.classList.remove('dragging');
+      apply3D();
+    });
+
+    function clamp(v, min, max){ return Math.max(min, Math.min(max, v)); }
+
+    // Time rendering loop
+    function setHandsTo(h, m, s){
+      const hAngle = (h%12) * 30 + (m/60)*30;
+      const mAngle = m * 6 + (s/60)*6;
+      const sAngle = s * 6;
+      hourHand.setAttribute('transform', `rotate(${hAngle})`);
+      minuteHand.setAttribute('transform', `rotate(${mAngle})`);
+      secondHand.setAttribute('transform', `rotate(${sAngle})`);
+    }
+
+    function tick(){
+      if(state.live){
+        const now = new Date();
+        const ms = now.getMilliseconds();
+        const sec = now.getSeconds() + (state.sweep ? ms/1000 : 0);
+        const min = now.getMinutes() + sec/60;
+        const hr  = (now.getHours()%12) + min/60;
+
+        hourHand.setAttribute('transform', `rotate(${hr*30})`);
+        minuteHand.setAttribute('transform', `rotate(${min*6})`);
+        secondHand.setAttribute('transform', `rotate(${sec*6})`);
+      }
+      requestAnimationFrame(tick);
+    }
+    requestAnimationFrame(tick);
+
+    // Defaults
+    function init(){
+      // Defaults: 10:10:36
+      setHandsTo(10,10,36);
+      applyState();
+
+      // Load saved config
+      restore();
+    }
+
+    // Persistence
+    function persist(explicit=false){
+      try{
+        localStorage.setItem('tissot-demo', JSON.stringify(state));
+        if(explicit) console.info('Saved configuration.');
+      }catch(e){}
+    }
+    function restore(){
+      try{
+        const raw = localStorage.getItem('tissot-demo');
+        if(!raw) return;
+        const saved = JSON.parse(raw);
+        Object.assign(state, saved);
+
+        // Apply UI fields
+        strapButtons.forEach(b=>b.setAttribute('aria-pressed', String(b.dataset.strap===state.strapType)));
+        strapColor.value = state.strapColor;
+        sizeRange.value = state.scale;
+        liveTime.checked = state.live;
+        sweep.checked = state.sweep;
+        lume.checked = state.lume;
+        dialColor.value = state.dialColor;
+
+        // case swatch
+        let idx = 0;
+        if(state.case.material==='steel') idx = 0;
+        if(state.case.material==='gold')  idx = 1;
+        if(state.case.material==='black') idx = 2;
+        caseSwatches.forEach((s,i)=> s.setAttribute('aria-checked', String(i===idx)));
+
+        applyState();
+        if(state.live) liveTime.dispatchEvent(new Event('change'));
+      }catch(e){}
+    }
+
+    // Helpers
+    function rgbToHex(c){
+      // Accept both hex and rgb; if hex return as-is
+      if(/^#/.test(c)) return c;
+      const m = c.match(/rgba?\((\d+),\s*(\d+),\s*(\d+)/i);
+      if(!m) return '#000000';
+      const r = (+m[1]).toString(16).padStart(2,'0');
+      const g = (+m[2]).toString(16).padStart(2,'0');
+      const b = (+m[3]).toString(16).padStart(2,'0');
+      return `#${r}${g}${b}`;
+    }
+
+    init();
+  </script>
+</body>
+</html>
